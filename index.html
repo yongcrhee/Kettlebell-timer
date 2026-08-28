@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <title>Kettlebell Complex Timer</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color-scheme:dark;background:#0b1020;color:#fff}
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b1020,#141b2d);min-height:100vh}
+    button,input{font:inherit} .wrap{max-width:760px;margin:auto;padding:18px}.card{background:#151d31;border:1px solid #2a3550;border-radius:18px;padding:16px;margin-bottom:14px}
+    h1{font-size:1.45rem;margin:0 0 4px}.muted{color:#aab4ca;font-size:.92rem}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.row{display:grid;grid-template-columns:1fr 88px 44px;gap:8px;align-items:end;margin:8px 0}
+    label span{display:block;font-size:.8rem;color:#aab4ca;margin-bottom:5px}input{width:100%;padding:12px;border-radius:12px;border:1px solid #34415f;background:#0f1628;color:#fff}
+    button{border:0;border-radius:12px;padding:12px 14px;font-weight:700}.primary{background:#3b82f6;color:#fff}.secondary{background:#25314b;color:#fff}.danger{background:#3a2330;color:#fff}.wide{width:100%}
+    .timer{text-align:center;padding:24px 10px}.phase{letter-spacing:.18em;color:#9aa6bd;font-weight:800}.exercise{font-size:2rem;font-weight:850;margin-top:8px}.time{font-size:6rem;line-height:1;font-weight:900;font-variant-numeric:tabular-nums;margin:12px 0}.cue{font-size:2rem;font-weight:900;min-height:2.3rem}.next{color:#aab4ca}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.progress{height:12px;background:#27324a;border-radius:99px;overflow:hidden}.bar{height:100%;width:0;background:#3b82f6}
+    @media(max-width:560px){.grid{grid-template-columns:1fr}.time{font-size:5.4rem}.exercise{font-size:1.7rem}.wrap{padding:12px}.row{grid-template-columns:1fr 78px 42px}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Kettlebell Complex Timer</h1>
+    <div class="muted">Personal interval timer with spoken 3, 2, 1, GO cues.</div>
+  </div>
+
+  <form id="setup" class="card">
+    <div class="grid">
+      <label><span>Workout name</span><input id="name" value="Full Body Complex"></label>
+      <label><span>Sets</span><input id="sets" type="number" min="1" value="5"></label>
+    </div>
+    <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <strong>Exercises</strong><button type="button" id="add" class="secondary">+ Add</button>
+    </div>
+    <div id="list"></div>
+    <div class="grid" style="margin-top:12px">
+      <label><span>Rest between exercises (sec)</span><input id="exerciseRest" type="number" min="0" value="5"></label>
+      <label><span>Rest between sets (sec)</span><input id="setRest" type="number" min="0" value="60"></label>
+    </div>
+    <button class="primary wide" style="margin-top:14px" type="submit">Start Complex</button>
+  </form>
+
+  <div class="card timer">
+    <div id="phase" class="phase">READY</div>
+    <div id="setLabel" class="muted" style="margin-top:6px">Set 1 / 5</div>
+    <div id="exercise" class="exercise">Kettlebell Swing</div>
+    <div id="time" class="time">0:30</div>
+    <div id="cue" class="cue"></div>
+    <div id="next" class="next">Next: Clean</div>
+    <div class="actions" style="margin-top:18px">
+      <button id="pause" class="secondary" disabled>Pause</button>
+      <button id="reset" class="danger" disabled>Reset</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:8px"><span>Progress</span><span id="progressText" class="muted">0 of 5 sets completed</span></div>
+    <div class="progress"><div id="bar" class="bar"></div></div>
+  </div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+let exercises=JSON.parse(localStorage.getItem('kbExercises')||'null')||[
+ {name:'Kettlebell Swing',time:30},{name:'Clean',time:30},{name:'Front Squat',time:30},{name:'Press',time:30}
+];
+const saved=JSON.parse(localStorage.getItem('kbConfig')||'{}');
+$('#name').value=saved.name||'Full Body Complex'; $('#sets').value=saved.sets||5; $('#exerciseRest').value=saved.exerciseRest??5; $('#setRest').value=saved.setRest??60;
+let cfg={},round=1,idx=0,phase='ready',remaining=30,completed=0,timer=null,running=false,audioCtx=null,lastCue=null;
+function renderList(){const list=$('#list');list.innerHTML='';exercises.forEach((e,i)=>{const r=document.createElement('div');r.className='row';r.innerHTML=`<label><span>Exercise ${i+1}</span><input class="ename" value="${e.name.replace(/"/g,'&quot;')}"></label><label><span>Sec</span><input class="etime" type="number" min="1" value="${e.time}"></label><button type="button" class="danger remove">×</button>`;r.querySelector('.ename').oninput=ev=>{exercises[i].name=ev.target.value||`Exercise ${i+1}`;save();renderTimer()};r.querySelector('.etime').oninput=ev=>{exercises[i].time=Math.max(1,+ev.target.value||30);save();renderTimer()};r.querySelector('.remove').onclick=()=>{if(exercises.length>1){exercises.splice(i,1);save();renderList();renderTimer()}};list.append(r)})}
+function save(){localStorage.setItem('kbExercises',JSON.stringify(exercises));localStorage.setItem('kbConfig',JSON.stringify({name:$('#name').value,sets:+$('#sets').value||5,exerciseRest:+$('#exerciseRest').value||0,setRest:+$('#setRest').value||0}))}
+function format(s){s=Math.max(0,Math.round(s));return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`}
+function speak(text){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=.95;u.pitch=1;u.volume=1;speechSynthesis.speak(u)}catch(e){}}
+function beep(freq=880,d=.11,vol=.25){try{const AC=window.AudioContext||window.webkitAudioContext;if(!audioCtx)audioCtx=new AC();if(audioCtx.state==='suspended')audioCtx.resume();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='square';o.frequency.value=freq;g.gain.value=vol;o.connect(g);g.connect(audioCtx.destination);o.start();g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+d);o.stop(audioCtx.currentTime+d)}catch(e){}}
+function cue(){if(remaining===lastCue)return;lastCue=remaining;if(remaining<=3&&remaining>=1){speak(String(remaining));}else if(remaining<=10&&remaining>=4){beep(900,.1,.28)}}
+function renderTimer(){cfg={name:$('#name').value||'Complex',sets:Math.max(1,+$('#sets').value||5),exerciseRest:Math.max(0,+$('#exerciseRest').value||0),setRest:Math.max(0,+$('#setRest').value||0)};$('#setLabel').textContent=`Set ${round} / ${cfg.sets}`;$('#time').textContent=format(remaining);$('#cue').textContent=(remaining<=3&&remaining>0&&phase!=='ready')?remaining:'';if(phase==='readycount'){$('#phase').textContent='GET READY';$('#exercise').textContent='Get Ready';$('#next').textContent=`First: ${exercises[0].name}`}else if(phase==='work'){$('#phase').textContent='WORK';$('#exercise').textContent=exercises[idx].name;$('#next').textContent=idx<exercises.length-1?`Next: ${exercises[idx+1].name}`:(round<cfg.sets?'Next: Set Rest':'Final exercise')}else if(phase==='exerciseRest'){$('#phase').textContent='TRANSITION';$('#exercise').textContent='Rest';$('#next').textContent=`Next: ${exercises[idx+1].name}`}else if(phase==='setRest'){$('#phase').textContent='SET REST';$('#exercise').textContent='Recover';$('#next').textContent=`Next set: ${exercises[0].name}`}else if(phase==='done'){$('#phase').textContent='COMPLETE';$('#exercise').textContent='Workout Complete';$('#next').textContent=`${cfg.sets} sets finished`}else{$('#phase').textContent='READY';$('#exercise').textContent=exercises[0].name;$('#next').textContent=exercises[1]?`Next: ${exercises[1].name}`:'Ready'}$('#progressText').textContent=`${completed} of ${cfg.sets} sets completed`;$('#bar').style.width=`${Math.round(completed/cfg.sets*100)}%`;$('#pause').textContent=running?'Pause':'Resume';save()}
+function stop(){clearInterval(timer);timer=null;running=false}
+function advance(){lastCue=null;if(phase==='readycount'){phase='work';idx=0;remaining=exercises[0].time;speak('Go')}else if(phase==='work'){if(idx<exercises.length-1){if(cfg.exerciseRest>0){phase='exerciseRest';remaining=cfg.exerciseRest;beep(700,.12,.3);setTimeout(()=>beep(950,.12,.3),150)}else{idx++;remaining=exercises[idx].time;speak('Go')}}else{completed=round;if(round>=cfg.sets){phase='done';remaining=0;stop();speak('Workout complete');$('#pause').disabled=true;renderTimer();return}if(cfg.setRest>0){phase='setRest';remaining=cfg.setRest;beep(600,.35,.3)}else{round++;idx=0;phase='work';remaining=exercises[0].time;speak('Go')}}}else if(phase==='exerciseRest'){idx++;phase='work';remaining=exercises[idx].time;speak('Go')}else if(phase==='setRest'){round++;idx=0;phase='work';remaining=exercises[0].time;speak('Go')}renderTimer()}
+function run(){stop();running=true;let next=Date.now()+1000;timer=setInterval(()=>{const now=Date.now();if(now<next-30)return;const steps=Math.max(1,Math.floor((now-next)/1000)+1);next+=steps*1000;remaining-=steps;if(remaining<=0)advance();else{cue();renderTimer()}},120);renderTimer()}
+$('#add').onclick=()=>{exercises.push({name:'New Exercise',time:30});renderList();save()};
+$('#setup').onsubmit=e=>{e.preventDefault();save();round=1;idx=0;completed=0;phase='readycount';remaining=3;lastCue=null;$('#pause').disabled=false;$('#reset').disabled=false;speak('3');run()};
+$('#pause').onclick=()=>{if(running){stop();renderTimer()}else run()};
+$('#reset').onclick=()=>{stop();round=1;idx=0;completed=0;phase='ready';remaining=exercises[0].time;$('#pause').disabled=true;$('#reset').disabled=true;renderTimer()};
+['#name','#sets','#exerciseRest','#setRest'].forEach(s=>$(s).oninput=()=>{save();if(phase==='ready')renderTimer()});
+renderList();remaining=exercises[0].time;renderTimer();
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
+</script>
+</body>
+</html>
