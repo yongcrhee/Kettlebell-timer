@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kb-timer-v4-three-screen-ux';
+const CACHE_NAME = 'kb-timer-v5-voice-announcements';
 
 const APP_SHELL = [
   './',
@@ -20,7 +20,7 @@ self.addEventListener('activate', event => {
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(key => key !== CACHE_NAME)
+          .filter(key => key.startsWith('kb-timer-') && key !== CACHE_NAME)
           .map(key => caches.delete(key))
       )
     ).then(() => self.clients.claim())
