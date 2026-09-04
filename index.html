@@ -82,6 +82,31 @@
     .bar{height:100%;background:#3b82f6;width:0;transition:width .2s ease}
     .sessionActions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
     .wakeNote{text-align:center;color:#6f7d94;font-size:.74rem;margin-top:9px;min-height:18px}
+
+    .musicPanel{
+      margin:0 0 14px;background:#101827;border:1px solid #27334a;border-radius:16px;
+      padding:10px;overflow:hidden
+    }
+    .musicTop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+    .musicTitle{font-size:.88rem;font-weight:850}
+    .musicStatus{font-size:.76rem;color:#9ba8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .musicPlayerWrap{
+      width:100%;min-height:200px;aspect-ratio:16/9;background:#070b12;border-radius:12px;
+      overflow:hidden;display:flex;align-items:center;justify-content:center
+    }
+    #ytPlayer,#ytPlayer iframe{width:100%!important;height:100%!important;min-height:200px}
+    .musicControls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+    .musicToggleRow{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      background:#101827;border:1px solid #27334a;border-radius:14px;padding:12px 13px;margin-top:12px
+    }
+    .switch{position:relative;width:50px;height:28px;flex:none}
+    .switch input{opacity:0;width:0;height:0;position:absolute}
+    .slider{position:absolute;inset:0;background:#303b50;border-radius:99px;transition:.2s}
+    .slider:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s}
+    .switch input:checked + .slider{background:#3b82f6}
+    .switch input:checked + .slider:before{transform:translateX(22px)}
+
     @media(max-width:540px){
       .app{padding:12px 12px 24px}
       .grid2{grid-template-columns:1fr}
@@ -100,7 +125,7 @@
     <div class="topbar">
       <div class="brand">
         <h1>My Workouts</h1>
-        <p>Version 4 · Spoken exercise announcements</p>
+        <p>Choose a complex and start training.</p>
       </div>
       <button id="addWorkoutHome" type="button" class="primary">+ Add</button>
     </div>
@@ -142,6 +167,17 @@
         <label><span>Rest between sets</span><input id="setRest" type="number" min="0" max="3600" value="60" inputmode="numeric"></label>
       </div>
 
+      <div class="musicToggleRow">
+        <div>
+          <div class="sectionTitle">Workout Music</div>
+          <div class="muted small">Random high-energy YouTube workout mix</div>
+        </div>
+        <label class="switch" aria-label="Workout music">
+          <input id="musicEnabled" type="checkbox" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
       <div class="editorActions two">
         <button id="saveWorkout" type="button" class="secondary">Save Workout</button>
         <button type="submit" class="primary">Start Workout</button>
@@ -168,6 +204,22 @@
       <div id="nextDisplay" class="nextLine"></div>
     </div>
 
+    <div id="musicPanel" class="musicPanel">
+      <div class="musicTop">
+        <div>
+          <div class="musicTitle">Workout Radio</div>
+          <div id="musicStatus" class="musicStatus">Loading upbeat mix…</div>
+        </div>
+      </div>
+      <div class="musicPlayerWrap">
+        <div id="ytPlayer"></div>
+      </div>
+      <div class="musicControls">
+        <button id="musicPlayPause" type="button" class="secondary">Pause Music</button>
+        <button id="musicNext" type="button" class="secondary">Next Mix</button>
+      </div>
+    </div>
+
     <div class="progressWrap">
       <div class="progressMeta">
         <span id="progressLeft">Set 1 of 3</span>
@@ -192,6 +244,16 @@
   const WORKOUTS_KEY = 'kbWorkoutsV2';
   const CURRENT_KEY = 'kbCurrentWorkoutId';
   const DRAFT_KEY = 'kbDraftV2';
+
+  const MUSIC_KEY = 'kbWorkoutMusicEnabledV1';
+
+  // Public high-energy workout mixes. A new one is chosen each session.
+  const WORKOUT_MIXES = [
+    {id:'-rN4F3ng4Mg', title:'Non-Stop Workout Mix'},
+    {id:'ip5H5_3HUCQ', title:'Fitness & Gym Motivation Mix'},
+    {id:'sA-vf9PedOo', title:'High-Intensity Training Mix'},
+    {id:'xhxaUdR7crs', title:'Motivational Workout Mix'}
+  ];
 
   const defaults = {
     name:'Full Body Complex',
@@ -221,7 +283,13 @@
   let lastCue = null;
   let wakeLock = null;
   let sessionActive = false;
-  let exerciseAnnouncement = null;
+
+  let ytPlayer = null;
+  let ytReady = false;
+  let ytApiRequested = false;
+  let currentMixIndex = -1;
+  let musicWanted = true;
+  let musicPaused = false;
 
   function makeId(){
     return 'w_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
@@ -342,6 +410,7 @@
     $('#sets').value = 3;
     $('#exerciseRest').value = 5;
     $('#setRest').value = 60;
+    $('#musicEnabled').checked = localStorage.getItem(MUSIC_KEY) !== 'false';
     $('#editorMode').textContent = 'New workout';
     $('#saveWorkout').textContent = 'Save Workout';
     $('#deleteArea').hidden = true;
@@ -359,6 +428,7 @@
     $('#sets').value = w.sets;
     $('#exerciseRest').value = w.exerciseRest ?? 5;
     $('#setRest').value = w.setRest ?? 60;
+    $('#musicEnabled').checked = localStorage.getItem(MUSIC_KEY) !== 'false';
     $('#editorMode').textContent = 'Editing saved workout';
     $('#saveWorkout').textContent = 'Save Changes';
     $('#deleteArea').hidden = false;
@@ -429,6 +499,7 @@
   }
 
   function saveEditor(){
+    localStorage.setItem(MUSIC_KEY, $('#musicEnabled').checked ? 'true' : 'false');
     const data = editorData();
     if(editingId){
       const pos = workouts.findIndex(w=>w.id===editingId);
@@ -519,33 +590,15 @@
     setTimeout(()=>pronouncedBeep('go'),520);
   }
 
-  function cancelSpeech(){
-    exerciseAnnouncement = null;
-    try{ window.speechSynthesis?.cancel(); }catch(e){}
-  }
-
-  function speak(text, isExercise=false){
-    cancelSpeech();
+  function speak(text){
     try{
+      speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.lang='en-US';
       u.rate=.92;
       u.pitch=1;
       u.volume=1;
-      if(isExercise){
-        exerciseAnnouncement = u;
-        const clear = ()=>{
-          if(exerciseAnnouncement === u) exerciseAnnouncement = null;
-        };
-        u.onend=clear;
-        u.onerror=clear;
-      }
       speechSynthesis.speak(u);
-    }catch(e){ exerciseAnnouncement = null; }
-  }
-
-  function announceExercise(index, prefix='Next'){
-    speak(`${prefix}: ${sessionWorkout.exercises[index].name}`, true);
+    }catch(e){}
   }
 
   async function requestWakeLock(){
@@ -575,6 +628,133 @@
     }
   });
 
+
+  function loadYouTubeApi(){
+    if(ytApiRequested || window.YT) return;
+    ytApiRequested = true;
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    tag.async = true;
+    document.head.appendChild(tag);
+  }
+
+  function chooseNextMix(){
+    if(WORKOUT_MIXES.length === 1) return 0;
+    let next = currentMixIndex;
+    while(next === currentMixIndex){
+      next = Math.floor(Math.random()*WORKOUT_MIXES.length);
+    }
+    return next;
+  }
+
+  function createPlayerIfNeeded(){
+    if(!musicWanted) return;
+    loadYouTubeApi();
+    if(ytPlayer || !window.YT || !YT.Player) return;
+
+    currentMixIndex = chooseNextMix();
+    const mix = WORKOUT_MIXES[currentMixIndex];
+    $('#musicStatus').textContent = mix.title;
+
+    ytPlayer = new YT.Player('ytPlayer',{
+      width:'100%',
+      height:'100%',
+      videoId:mix.id,
+      playerVars:{
+        autoplay:1,
+        controls:0,
+        playsinline:1,
+        rel:0,
+        modestbranding:1,
+        origin:location.origin
+      },
+      events:{
+        onReady:(e)=>{
+          ytReady=true;
+          musicPaused=false;
+          try{
+            e.target.setVolume(62);
+            e.target.playVideo();
+          }catch(err){}
+          updateMusicButton();
+        },
+        onStateChange:(e)=>{
+          if(window.YT && e.data===YT.PlayerState.ENDED){
+            nextMusicMix();
+          }
+          if(window.YT){
+            musicPaused = e.data !== YT.PlayerState.PLAYING;
+            updateMusicButton();
+          }
+        },
+        onError:()=>{
+          $('#musicStatus').textContent='Mix unavailable. Tap Next Mix.';
+        }
+      }
+    });
+  }
+
+  window.onYouTubeIframeAPIReady = function(){
+    if(sessionActive && musicWanted) createPlayerIfNeeded();
+  };
+
+  function startWorkoutMusic(){
+    musicWanted = localStorage.getItem(MUSIC_KEY) !== 'false';
+    $('#musicPanel').hidden = !musicWanted;
+    if(!musicWanted) return;
+    $('#musicStatus').textContent='Loading upbeat mix…';
+    createPlayerIfNeeded();
+    // If the API was already loaded, creation is immediate.
+    if(window.YT && YT.Player) createPlayerIfNeeded();
+  }
+
+  function nextMusicMix(){
+    if(!musicWanted) return;
+    currentMixIndex = chooseNextMix();
+    const mix = WORKOUT_MIXES[currentMixIndex];
+    $('#musicStatus').textContent = mix.title;
+    musicPaused=false;
+    if(ytReady && ytPlayer){
+      try{
+        ytPlayer.loadVideoById(mix.id);
+        ytPlayer.setVolume(62);
+        ytPlayer.playVideo();
+      }catch(e){}
+    }else{
+      createPlayerIfNeeded();
+    }
+    updateMusicButton();
+  }
+
+  function toggleMusic(){
+    if(!ytPlayer || !ytReady){
+      createPlayerIfNeeded();
+      return;
+    }
+    try{
+      if(musicPaused){
+        ytPlayer.playVideo();
+        musicPaused=false;
+      }else{
+        ytPlayer.pauseVideo();
+        musicPaused=true;
+      }
+    }catch(e){}
+    updateMusicButton();
+  }
+
+  function updateMusicButton(){
+    $('#musicPlayPause').textContent = musicPaused ? 'Play Music' : 'Pause Music';
+  }
+
+  function stopWorkoutMusic(){
+    if(ytPlayer && ytReady){
+      try{ ytPlayer.stopVideo(); }catch(e){}
+    }
+    musicPaused=true;
+    updateMusicButton();
+  }
+
   function beginSession(w){
     stopTimer();
     sessionWorkout = w;
@@ -589,6 +769,7 @@
     getAudio();
     showScreen('session');
     requestWakeLock();
+    startWorkoutMusic();
     speak('3');
     renderSession();
     runTimer();
@@ -662,9 +843,7 @@
     if(remaining===lastCue) return;
     lastCue=remaining;
     if(remaining>=1 && remaining<=3){
-      // Do not interrupt an exercise name with spoken countdown numbers.
-      if(exerciseAnnouncement) pronouncedBeep('count');
-      else speak(String(remaining));
+      speak(String(remaining));
     }else if(remaining>=4 && remaining<=10){
       pronouncedBeep('count');
     }
@@ -704,7 +883,7 @@
       idx=0;
       remaining=sessionWorkout.exercises[0].time;
       pronouncedBeep('go');
-      announceExercise(0, 'Start');
+      speak('Go');
     }else if(phase==='work'){
       completedExercises++;
       if(idx<exCount-1){
@@ -712,13 +891,11 @@
           phase='exerciseRest';
           remaining=sessionWorkout.exerciseRest;
           doubleTransitionTone();
-          // With a very short transition, announce at the start of work.
-          if(remaining>3) announceExercise(idx+1);
         }else{
           idx++;
           remaining=sessionWorkout.exercises[idx].time;
           pronouncedBeep('go');
-          announceExercise(idx, 'Start');
+          speak('Go');
         }
       }else{
         if(round>=sessionWorkout.sets){
@@ -729,14 +906,13 @@
           phase='setRest';
           remaining=sessionWorkout.setRest;
           pronouncedBeep('set');
-          if(remaining>3) announceExercise(0, `Set ${round+1}, first exercise`);
         }else{
           round++;
           idx=0;
           phase='work';
           remaining=sessionWorkout.exercises[0].time;
           pronouncedBeep('go');
-          announceExercise(0, 'Start');
+          speak('Go');
         }
       }
     }else if(phase==='exerciseRest'){
@@ -744,16 +920,14 @@
       phase='work';
       remaining=sessionWorkout.exercises[idx].time;
       pronouncedBeep('go');
-      if(sessionWorkout.exerciseRest<=3) announceExercise(idx, 'Start');
-      else speak('Go');
+      speak('Go');
     }else if(phase==='setRest'){
       round++;
       idx=0;
       phase='work';
       remaining=sessionWorkout.exercises[0].time;
       pronouncedBeep('go');
-      if(sessionWorkout.setRest<=3) announceExercise(0, 'Start');
-      else speak('Go');
+      speak('Go');
     }
     renderSession();
   }
@@ -764,6 +938,7 @@
     phase='done';
     remaining=0;
     sessionActive=false;
+    stopWorkoutMusic();
     finishTone();
     speak('Workout complete');
     await releaseWakeLock();
@@ -776,7 +951,8 @@
     if(phase!=='done' && !confirm('End this workout?')) return;
     stopTimer();
     sessionActive=false;
-    cancelSpeech();
+    stopWorkoutMusic();
+    try{ speechSynthesis.cancel(); }catch(e){}
     await releaseWakeLock();
     sessionWorkout=null;
     renderHome();
@@ -801,20 +977,22 @@
     if(phase==='done'){ endSession(); return; }
     if(running){
       stopTimer();
-      cancelSpeech();
       $('#pauseButton').textContent='Resume';
     }else{
       getAudio();
-      if(phase==='exerciseRest' && remaining>3) announceExercise(idx+1);
-      else if(phase==='setRest' && remaining>3) announceExercise(0, `Set ${round+1}, first exercise`);
-      else if(phase==='work') announceExercise(idx, 'Continue');
       lastCue=null;
       runTimer();
     }
   });
 
   $('#endButton').addEventListener('click',endSession);
+  $('#musicPlayPause').addEventListener('click',toggleMusic);
+  $('#musicNext').addEventListener('click',nextMusicMix);
+  $('#musicEnabled').addEventListener('change',()=>{
+    localStorage.setItem(MUSIC_KEY, $('#musicEnabled').checked ? 'true' : 'false');
+  });
 
+  loadYouTubeApi();
   initStorage();
 
   if('serviceWorker' in navigator){
