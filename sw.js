@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kb-timer-v5-workout-radio';
+const CACHE_NAME = 'kb-timer-v7-tuned-phone-voice';
 
 const APP_SHELL = [
   './',

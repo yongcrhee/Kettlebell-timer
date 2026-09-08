@@ -590,13 +590,63 @@
     setTimeout(()=>pronouncedBeep('go'),520);
   }
 
-  function speak(text){
+  let preferredPhoneVoice = null;
+
+  function choosePhoneVoice(){
+    try{
+      const voices = speechSynthesis.getVoices() || [];
+      if(!voices.length) return null;
+
+      const english = voices.filter(v => /^en(-|_)/i.test(v.lang || ''));
+      const pool = english.length ? english : voices;
+
+      // Prefer higher-quality local Google/Samsung English voices when available.
+      const scored = pool.map(v => {
+        const n = (v.name || '').toLowerCase();
+        const l = (v.lang || '').toLowerCase();
+        let score = 0;
+        if(v.localService) score += 6;
+        if(l === 'en-us') score += 5;
+        if(n.includes('google')) score += 4;
+        if(n.includes('samsung')) score += 3;
+        if(n.includes('english')) score += 2;
+        if(n.includes('network')) score -= 3;
+        return {v,score};
+      }).sort((a,b)=>b.score-a.score);
+
+      preferredPhoneVoice = scored[0]?.v || pool[0] || null;
+      return preferredPhoneVoice;
+    }catch(e){
+      return null;
+    }
+  }
+
+  choosePhoneVoice();
+  try{
+    speechSynthesis.addEventListener('voiceschanged', choosePhoneVoice);
+  }catch(e){
+    speechSynthesis.onvoiceschanged = choosePhoneVoice;
+  }
+
+  function speak(text, style='coach'){
     try{
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.rate=.92;
-      u.pitch=1;
-      u.volume=1;
+      const voice = preferredPhoneVoice || choosePhoneVoice();
+      if(voice) u.voice = voice;
+      u.lang = voice?.lang || 'en-US';
+      u.volume = 1;
+
+      if(style === 'count'){
+        u.rate = 1.08;
+        u.pitch = 1.06;
+      }else if(style === 'go'){
+        u.rate = 1.18;
+        u.pitch = 1.12;
+      }else{
+        u.rate = 1.04;
+        u.pitch = 1.03;
+      }
       speechSynthesis.speak(u);
     }catch(e){}
   }
@@ -770,7 +820,7 @@
     showScreen('session');
     requestWakeLock();
     startWorkoutMusic();
-    speak('3');
+    speak('3', 'count');
     renderSession();
     runTimer();
   }
@@ -843,7 +893,7 @@
     if(remaining===lastCue) return;
     lastCue=remaining;
     if(remaining>=1 && remaining<=3){
-      speak(String(remaining));
+      speak(String(remaining), 'count');
     }else if(remaining>=4 && remaining<=10){
       pronouncedBeep('count');
     }
@@ -883,7 +933,7 @@
       idx=0;
       remaining=sessionWorkout.exercises[0].time;
       pronouncedBeep('go');
-      speak('Go');
+      speak('Go!', 'go');
     }else if(phase==='work'){
       completedExercises++;
       if(idx<exCount-1){
@@ -891,11 +941,12 @@
           phase='exerciseRest';
           remaining=sessionWorkout.exerciseRest;
           doubleTransitionTone();
+          speak(`Next! ${sessionWorkout.exercises[idx+1].name}.`, 'coach');
         }else{
           idx++;
           remaining=sessionWorkout.exercises[idx].time;
           pronouncedBeep('go');
-          speak('Go');
+          speak('Go!', 'go');
         }
       }else{
         if(round>=sessionWorkout.sets){
@@ -906,13 +957,14 @@
           phase='setRest';
           remaining=sessionWorkout.setRest;
           pronouncedBeep('set');
+          speak(`Next set! First exercise, ${sessionWorkout.exercises[0].name}.`, 'coach');
         }else{
           round++;
           idx=0;
           phase='work';
           remaining=sessionWorkout.exercises[0].time;
           pronouncedBeep('go');
-          speak('Go');
+          speak('Go!', 'go');
         }
       }
     }else if(phase==='exerciseRest'){
@@ -920,14 +972,14 @@
       phase='work';
       remaining=sessionWorkout.exercises[idx].time;
       pronouncedBeep('go');
-      speak('Go');
+      speak('Go!', 'go');
     }else if(phase==='setRest'){
       round++;
       idx=0;
       phase='work';
       remaining=sessionWorkout.exercises[0].time;
       pronouncedBeep('go');
-      speak('Go');
+      speak('Go!', 'go');
     }
     renderSession();
   }
@@ -940,7 +992,7 @@
     sessionActive=false;
     stopWorkoutMusic();
     finishTone();
-    speak('Workout complete');
+    speak('Workout complete!', 'coach');
     await releaseWakeLock();
     $('#wakeNote').textContent='Workout complete';
     renderSession();
