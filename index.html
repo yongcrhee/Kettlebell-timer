@@ -170,7 +170,7 @@
       <div class="musicToggleRow">
         <div>
           <div class="sectionTitle">Workout Music</div>
-          <div class="muted small">Random high-energy YouTube workout mix</div>
+          <div class="muted small">Random K-pop workout mix</div>
         </div>
         <label class="switch" aria-label="Workout music">
           <input id="musicEnabled" type="checkbox" checked>
@@ -207,8 +207,8 @@
     <div id="musicPanel" class="musicPanel">
       <div class="musicTop">
         <div>
-          <div class="musicTitle">Workout Radio</div>
-          <div id="musicStatus" class="musicStatus">Loading upbeat mix…</div>
+          <div class="musicTitle">K-Pop Workout Radio</div>
+          <div id="musicStatus" class="musicStatus">Loading K-pop workout mix…</div>
         </div>
       </div>
       <div class="musicPlayerWrap">
@@ -249,10 +249,10 @@
 
   // Public high-energy workout mixes. A new one is chosen each session.
   const WORKOUT_MIXES = [
-    {id:'-rN4F3ng4Mg', title:'Non-Stop Workout Mix'},
-    {id:'ip5H5_3HUCQ', title:'Fitness & Gym Motivation Mix'},
-    {id:'sA-vf9PedOo', title:'High-Intensity Training Mix'},
-    {id:'xhxaUdR7crs', title:'Motivational Workout Mix'}
+    {id:'Usm-a9ftUV4', title:'High Energy K-Pop Workout Mix'},
+    {id:'hxm2j9Jo6B4', title:'K-Pop High-Energy Sweat Mix'},
+    {id:'OT_ivDuq5d4', title:'K-Pop Gym Motivation Mix'},
+    {id:'4hiVccEstjA', title:'K-Pop Workout & Motivation Mix'}
   ];
 
   const defaults = {
@@ -651,6 +651,145 @@
     }catch(e){}
   }
 
+
+  const VOICE_CLIPS = {
+    'bouncing twist':'bouncing-twist.mp3',
+    'arm circles front':'arm-circles-front.mp3',
+    'arm circles back':'arm-circles-back.mp3',
+    'aura farmer':'aura-farmer.mp3',
+    'chiropractor':'chiropractor.mp3',
+    'mcgregor':'mcgregor.mp3',
+    'side bend':'side-bend.mp3',
+    'body waves':'body-waves.mp3',
+    'yogi lunge':'yogi-lunge.mp3',
+    'hindu squats':'hindu-squats.mp3',
+    'hindu squat':'hindu-squats.mp3',
+    'deep squat rotations':'deep-squat-rotations.mp3',
+    'high kneeling halo':'high-kneeling-halo.mp3',
+    'high kneeling curl':'high-kneeling-curl.mp3',
+    'high kneeling triceps extension':'high-kneeling-triceps-extension.mp3',
+    'high kneeling tricep extension':'high-kneeling-triceps-extension.mp3',
+    'high kneeling high pull':'high-kneeling-high-pull.mp3',
+    'floor press':'floor-press.mp3',
+    'floor pullover':'floor-pullover.mp3',
+    'floor pull over':'floor-pullover.mp3',
+    'one arm row right':'one-arm-row-right.mp3',
+    'one arm row left':'one-arm-row-left.mp3',
+    'kettlebell deadlift':'kettlebell-deadlift.mp3',
+    'kettlebell swing':'kettlebell-swing.mp3',
+    'kettle bell swing':'kettlebell-swing.mp3',
+    'goblet squat':'goblet-squat.mp3',
+    'two arm curl':'two-arm-curl.mp3',
+    'halo':'halo.mp3',
+    'triceps extension':'triceps-extension.mp3',
+    'tricep extension':'triceps-extension.mp3',
+    'russian twist':'russian-twist.mp3'
+  };
+
+  const SYSTEM_CLIPS = {
+    getReady:'get-ready.mp3',
+    next:'next.mp3',
+    rest:'rest.mp3',
+    nextSet:'next-set.mp3',
+    three:'three.mp3',
+    two:'two.mp3',
+    one:'one.mp3',
+    go:'go.mp3',
+    complete:'workout-complete.mp3'
+  };
+
+  let coachAudio = null;
+  let coachPlaying = false;
+  let normalMusicVolume = 56;
+
+  function normalizeExerciseName(name){
+    return String(name || '')
+      .toLowerCase()
+      .replace(/[–—_-]+/g,' ')
+      .replace(/[^\w\s]/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+
+  function clipPath(file){
+    return `./audio/${file}`;
+  }
+
+  function duckMusic(on){
+    if(!ytReady || !ytPlayer) return;
+    try{
+      ytPlayer.setVolume(on ? 22 : normalMusicVolume);
+    }catch(e){}
+  }
+
+  function playClip(file, fallbackText=null, fallbackStyle='coach'){
+    return new Promise(resolve=>{
+      if(!file){
+        if(fallbackText) speak(fallbackText, fallbackStyle);
+        setTimeout(resolve, fallbackText ? 800 : 0);
+        return;
+      }
+
+      try{
+        if(coachAudio){
+          coachAudio.pause();
+          coachAudio.currentTime = 0;
+        }
+        coachAudio = new Audio(clipPath(file));
+        coachAudio.preload = 'auto';
+        coachAudio.volume = 1;
+        coachPlaying = true;
+        duckMusic(true);
+
+        const finish = ()=>{
+          coachPlaying = false;
+          duckMusic(false);
+          resolve();
+        };
+
+        coachAudio.addEventListener('ended', finish, {once:true});
+        coachAudio.addEventListener('error', ()=>{
+          coachPlaying = false;
+          duckMusic(false);
+          if(fallbackText) speak(fallbackText, fallbackStyle);
+          setTimeout(resolve, fallbackText ? 800 : 0);
+        }, {once:true});
+
+        const p = coachAudio.play();
+        if(p && typeof p.catch === 'function'){
+          p.catch(()=>{
+            coachPlaying = false;
+            duckMusic(false);
+            if(fallbackText) speak(fallbackText, fallbackStyle);
+            setTimeout(resolve, fallbackText ? 800 : 0);
+          });
+        }
+      }catch(e){
+        coachPlaying = false;
+        duckMusic(false);
+        if(fallbackText) speak(fallbackText, fallbackStyle);
+        setTimeout(resolve, fallbackText ? 800 : 0);
+      }
+    });
+  }
+
+  async function playExerciseName(name){
+    const key = normalizeExerciseName(name);
+    const file = VOICE_CLIPS[key];
+    await playClip(file, name, 'coach');
+  }
+
+  async function playSequence(items){
+    for(const item of items){
+      if(!sessionActive) break;
+      if(item.type === 'system'){
+        await playClip(SYSTEM_CLIPS[item.key], item.fallback || null, item.style || 'coach');
+      }else if(item.type === 'exercise'){
+        await playExerciseName(item.name);
+      }
+    }
+  }
+
   async function requestWakeLock(){
     if(!('wakeLock' in navigator)){
       $('#wakeNote').textContent='Screen-awake control is not supported on this browser';
@@ -723,7 +862,7 @@
           ytReady=true;
           musicPaused=false;
           try{
-            e.target.setVolume(62);
+            e.target.setVolume(normalMusicVolume);
             e.target.playVideo();
           }catch(err){}
           updateMusicButton();
@@ -752,7 +891,7 @@
     musicWanted = localStorage.getItem(MUSIC_KEY) !== 'false';
     $('#musicPanel').hidden = !musicWanted;
     if(!musicWanted) return;
-    $('#musicStatus').textContent='Loading upbeat mix…';
+    $('#musicStatus').textContent='Loading K-pop workout mix…';
     createPlayerIfNeeded();
     // If the API was already loaded, creation is immediate.
     if(window.YT && YT.Player) createPlayerIfNeeded();
@@ -767,7 +906,7 @@
     if(ytReady && ytPlayer){
       try{
         ytPlayer.loadVideoById(mix.id);
-        ytPlayer.setVolume(62);
+        ytPlayer.setVolume(normalMusicVolume);
         ytPlayer.playVideo();
       }catch(e){}
     }else{
@@ -805,7 +944,7 @@
     updateMusicButton();
   }
 
-  function beginSession(w){
+  async function beginSession(w){
     stopTimer();
     sessionWorkout = w;
     round=1;
@@ -820,7 +959,17 @@
     showScreen('session');
     requestWakeLock();
     startWorkoutMusic();
-    speak('3', 'count');
+    renderSession();
+
+    await playSequence([
+      {type:'system', key:'getReady', fallback:'Get ready!'},
+      {type:'exercise', name:sessionWorkout.exercises[0].name}
+    ]);
+
+    if(!sessionActive) return;
+    lastCue=3;
+    await playClip(SYSTEM_CLIPS.three, '3', 'count');
+    if(!sessionActive) return;
     renderSession();
     runTimer();
   }
@@ -892,9 +1041,14 @@
   function cueForSecond(){
     if(remaining===lastCue) return;
     lastCue=remaining;
-    if(remaining>=1 && remaining<=3){
-      speak(String(remaining), 'count');
-    }else if(remaining>=4 && remaining<=10){
+
+    if(remaining===3){
+      playClip(SYSTEM_CLIPS.three, '3', 'count');
+    }else if(remaining===2){
+      playClip(SYSTEM_CLIPS.two, '2', 'count');
+    }else if(remaining===1){
+      playClip(SYSTEM_CLIPS.one, '1', 'count');
+    }else if(remaining>=4 && remaining<=10 && !coachPlaying){
       pronouncedBeep('count');
     }
   }
@@ -933,7 +1087,7 @@
       idx=0;
       remaining=sessionWorkout.exercises[0].time;
       pronouncedBeep('go');
-      speak('Go!', 'go');
+      playClip(SYSTEM_CLIPS.go, 'Go!', 'go');
     }else if(phase==='work'){
       completedExercises++;
       if(idx<exCount-1){
@@ -941,12 +1095,15 @@
           phase='exerciseRest';
           remaining=sessionWorkout.exerciseRest;
           doubleTransitionTone();
-          speak(`Next! ${sessionWorkout.exercises[idx+1].name}.`, 'coach');
+          playSequence([
+            {type:'system', key:'next', fallback:'Next!'},
+            {type:'exercise', name:sessionWorkout.exercises[idx+1].name}
+          ]);
         }else{
           idx++;
           remaining=sessionWorkout.exercises[idx].time;
           pronouncedBeep('go');
-          speak('Go!', 'go');
+          playClip(SYSTEM_CLIPS.go, 'Go!', 'go');
         }
       }else{
         if(round>=sessionWorkout.sets){
@@ -957,14 +1114,17 @@
           phase='setRest';
           remaining=sessionWorkout.setRest;
           pronouncedBeep('set');
-          speak(`Next set! First exercise, ${sessionWorkout.exercises[0].name}.`, 'coach');
+          playSequence([
+            {type:'system', key:'nextSet', fallback:'Next set!'},
+            {type:'exercise', name:sessionWorkout.exercises[0].name}
+          ]);
         }else{
           round++;
           idx=0;
           phase='work';
           remaining=sessionWorkout.exercises[0].time;
           pronouncedBeep('go');
-          speak('Go!', 'go');
+          playClip(SYSTEM_CLIPS.go, 'Go!', 'go');
         }
       }
     }else if(phase==='exerciseRest'){
@@ -972,14 +1132,14 @@
       phase='work';
       remaining=sessionWorkout.exercises[idx].time;
       pronouncedBeep('go');
-      speak('Go!', 'go');
+      playClip(SYSTEM_CLIPS.go, 'Go!', 'go');
     }else if(phase==='setRest'){
       round++;
       idx=0;
       phase='work';
       remaining=sessionWorkout.exercises[0].time;
       pronouncedBeep('go');
-      speak('Go!', 'go');
+      playClip(SYSTEM_CLIPS.go, 'Go!', 'go');
     }
     renderSession();
   }
@@ -992,7 +1152,7 @@
     sessionActive=false;
     stopWorkoutMusic();
     finishTone();
-    speak('Workout complete!', 'coach');
+    playClip(SYSTEM_CLIPS.complete, 'Workout complete!', 'coach');
     await releaseWakeLock();
     $('#wakeNote').textContent='Workout complete';
     renderSession();
@@ -1004,7 +1164,11 @@
     stopTimer();
     sessionActive=false;
     stopWorkoutMusic();
-    try{ speechSynthesis.cancel(); }catch(e){}
+    try{
+      if(coachAudio){ coachAudio.pause(); coachAudio.currentTime=0; }
+      coachPlaying=false;
+      speechSynthesis.cancel();
+    }catch(e){}
     await releaseWakeLock();
     sessionWorkout=null;
     renderHome();
