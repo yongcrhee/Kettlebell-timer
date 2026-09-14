@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kb-timer-v10-real-kpop';
+const CACHE_NAME = 'kb-timer-v11-live-music-check';
 
 const APP_SHELL = [
   './',

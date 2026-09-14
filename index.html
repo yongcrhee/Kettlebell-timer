@@ -248,12 +248,66 @@
   const MUSIC_KEY = 'kbWorkoutMusicEnabledV1';
 
   // Public high-energy workout mixes. A new one is chosen each session.
-  const WORKOUT_MIXES = [
-    {id:'4-zpDONthNQ', title:'High Energy K-Pop Workout Mix'},
-    {id:'4-zpDONthNQ', title:'K-Pop High-Energy Sweat Mix'},
-    {id:'4-zpDONthNQ', title:'K-Pop Gym Motivation Mix'},
-    {id:'4-zpDONthNQ', title:'K-Pop Workout & Motivation Mix'}
+  let WORKOUT_MIXES = [
+    {id:'P7vBoGWoReg', title:'Stray Kids - CEREMONY'},
+    {id:'NED7nev2ywQ', title:'Stray Kids - Do It'},
+    {id:'eHHQaoEW30Q', title:'TWICE - THIS IS FOR'}
   ];
+
+  const MUSIC_SOURCE_CHECK_TIMEOUT = 4500;
+
+  async function probeYouTubeSource(mix){
+    const url = 'https://www.youtube.com/oembed?url=' +
+      encodeURIComponent('https://www.youtube.com/watch?v=' + mix.id) +
+      '&format=json';
+
+    const controller = new AbortController();
+    const timer = setTimeout(()=>controller.abort(), MUSIC_SOURCE_CHECK_TIMEOUT);
+
+    try{
+      const res = await fetch(url, {
+        method:'GET',
+        cache:'no-store',
+        signal:controller.signal
+      });
+      clearTimeout(timer);
+      return res.ok;
+    }catch(err){
+      clearTimeout(timer);
+      // Network/CORS failure is not proof that the video is unavailable.
+      // Keep the source and let the YouTube player make the final decision.
+      return null;
+    }
+  }
+
+  async function refreshMusicSources(){
+    if(!navigator.onLine || !WORKOUT_MIXES.length) return;
+
+    const checks = await Promise.all(
+      WORKOUT_MIXES.map(async mix => ({mix, result: await probeYouTubeSource(mix)}))
+    );
+
+    const confirmedAvailable = checks.filter(x => x.result === true).map(x => x.mix);
+    const unknown = checks.filter(x => x.result === null).map(x => x.mix);
+
+    // Remove only sources YouTube positively reports as unavailable.
+    const survivors = [...confirmedAvailable, ...unknown];
+    if(survivors.length){
+      WORKOUT_MIXES = survivors;
+    }
+
+    if(!WORKOUT_MIXES.length){
+      musicWanted = false;
+      const panel = document.getElementById('musicPanel');
+      if(panel) panel.hidden = true;
+    }
+  }
+
+  function removeUnavailableMusicSource(videoId){
+    if(!videoId) return;
+    WORKOUT_MIXES = WORKOUT_MIXES.filter(m => m.id !== videoId);
+    if(currentMixIndex >= WORKOUT_MIXES.length) currentMixIndex = -1;
+  }
 
   const defaults = {
     name:'Full Body Complex',
@@ -842,6 +896,10 @@
     if(ytPlayer || !window.YT || !YT.Player) return;
 
     currentMixIndex = chooseNextMix();
+    if(currentMixIndex < 0 || !WORKOUT_MIXES.length){
+      $('#musicStatus').textContent='No available K-pop source right now.';
+      return;
+    }
     const mix = WORKOUT_MIXES[currentMixIndex];
     $('#musicStatus').textContent = mix.title;
 
@@ -876,8 +934,17 @@
             updateMusicButton();
           }
         },
-        onError:()=>{
-          $('#musicStatus').textContent='Mix unavailable. Tap Next Mix.';
+        onError:(e)=>{
+          const failedId = WORKOUT_MIXES[currentMixIndex]?.id;
+          removeUnavailableMusicSource(failedId);
+          if(WORKOUT_MIXES.length){
+            $('#musicStatus').textContent='Source unavailable. Switching…';
+            setTimeout(()=>nextMusicMix(), 250);
+          }else{
+            $('#musicStatus').textContent='No available K-pop source right now.';
+            musicPaused=true;
+            updateMusicButton();
+          }
         }
       }
     });
@@ -900,6 +967,10 @@
   function nextMusicMix(){
     if(!musicWanted) return;
     currentMixIndex = chooseNextMix();
+    if(currentMixIndex < 0 || !WORKOUT_MIXES.length){
+      $('#musicStatus').textContent='No available K-pop source right now.';
+      return;
+    }
     const mix = WORKOUT_MIXES[currentMixIndex];
     $('#musicStatus').textContent = mix.title;
     musicPaused=false;
@@ -1217,22 +1288,6 @@
     });
   }
 })();
-</script>
-
-<script>
-window.__kbMusicRetryCount = 0;
-function tryNextMusicSource(){
-  try{
-    const p = window.player || window.ytPlayer || window.musicPlayer;
-    if (p && typeof p.loadVideoById === 'function'){
-      window.__kbMusicRetryCount++;
-      p.loadVideoById('4-zpDONthNQ');
-      setTimeout(function(){
-        try { if (typeof p.playVideo === 'function') p.playVideo(); } catch(e){}
-      }, 700);
-    }
-  }catch(e){}
-}
 </script>
 
 </body>
