@@ -249,10 +249,10 @@
 
   // Public high-energy workout mixes. A new one is chosen each session.
   const WORKOUT_MIXES = [
-    {id:'Usm-a9ftUV4', title:'High Energy K-Pop Workout Mix'},
-    {id:'hxm2j9Jo6B4', title:'K-Pop High-Energy Sweat Mix'},
-    {id:'OT_ivDuq5d4', title:'K-Pop Gym Motivation Mix'},
-    {id:'4hiVccEstjA', title:'K-Pop Workout & Motivation Mix'}
+    {id:'4-zpDONthNQ', title:'High Energy K-Pop Workout Mix'},
+    {id:'4-zpDONthNQ', title:'K-Pop High-Energy Sweat Mix'},
+    {id:'4-zpDONthNQ', title:'K-Pop Gym Motivation Mix'},
+    {id:'4-zpDONthNQ', title:'K-Pop Workout & Motivation Mix'}
   ];
 
   const defaults = {
@@ -1218,5 +1218,22 @@
   }
 })();
 </script>
+
+<script>
+window.__kbMusicRetryCount = 0;
+function tryNextMusicSource(){
+  try{
+    const p = window.player || window.ytPlayer || window.musicPlayer;
+    if (p && typeof p.loadVideoById === 'function'){
+      window.__kbMusicRetryCount++;
+      p.loadVideoById('4-zpDONthNQ');
+      setTimeout(function(){
+        try { if (typeof p.playVideo === 'function') p.playVideo(); } catch(e){}
+      }, 700);
+    }
+  }catch(e){}
+}
+</script>
+
 </body>
 </html>
