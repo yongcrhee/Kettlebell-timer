@@ -170,7 +170,7 @@
       <div class="musicToggleRow">
         <div>
           <div class="sectionTitle">Workout Music</div>
-          <div class="muted small">Random K-pop workout mix</div>
+          <div class="muted small">Real K-pop workout playlists</div>
         </div>
         <label class="switch" aria-label="Workout music">
           <input id="musicEnabled" type="checkbox" checked>
@@ -207,8 +207,8 @@
     <div id="musicPanel" class="musicPanel">
       <div class="musicTop">
         <div>
-          <div class="musicTitle">K-Pop Workout Radio</div>
-          <div id="musicStatus" class="musicStatus">Loading K-pop workout mix…</div>
+          <div class="musicTitle">K-Pop Workout Music</div>
+          <div id="musicStatus" class="musicStatus">Loading K-pop workout playlist…</div>
         </div>
       </div>
       <div class="musicPlayerWrap">
@@ -216,7 +216,7 @@
       </div>
       <div class="musicControls">
         <button id="musicPlayPause" type="button" class="secondary">Pause Music</button>
-        <button id="musicNext" type="button" class="secondary">Next Mix</button>
+        <button id="musicNext" type="button" class="secondary">Next Playlist</button>
       </div>
     </div>
 
@@ -249,9 +249,8 @@
 
   // Public high-energy workout mixes. A new one is chosen each session.
   let WORKOUT_MIXES = [
-    {id:'P7vBoGWoReg', title:'Stray Kids - CEREMONY'},
-    {id:'NED7nev2ywQ', title:'Stray Kids - Do It'},
-    {id:'eHHQaoEW30Q', title:'TWICE - THIS IS FOR'}
+    {id:'hxm2j9Jo6B4', title:'K-Pop High-Energy Workout Mix'},
+    {id:'6ip9msOSOgY', title:'Workout K-Pop Playlist for Motivation'}
   ];
 
   const MUSIC_SOURCE_CHECK_TIMEOUT = 4500;
@@ -958,7 +957,7 @@
     musicWanted = localStorage.getItem(MUSIC_KEY) !== 'false';
     $('#musicPanel').hidden = !musicWanted;
     if(!musicWanted) return;
-    $('#musicStatus').textContent='Loading K-pop workout mix…';
+    $('#musicStatus').textContent='Loading K-pop workout playlist…';
     createPlayerIfNeeded();
     // If the API was already loaded, creation is immediate.
     if(window.YT && YT.Player) createPlayerIfNeeded();
