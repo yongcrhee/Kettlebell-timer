@@ -82,30 +82,8 @@
     .bar{height:100%;background:#3b82f6;width:0;transition:width .2s ease}
     .sessionActions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
     .wakeNote{text-align:center;color:#6f7d94;font-size:.74rem;margin-top:9px;min-height:18px}
-
-    .musicPanel{
-      margin:0 0 14px;background:#101827;border:1px solid #27334a;border-radius:16px;
-      padding:10px;overflow:hidden
-    }
-    .musicTop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
-    .musicTitle{font-size:.88rem;font-weight:850}
-    .musicStatus{font-size:.76rem;color:#9ba8bf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .musicPlayerWrap{
-      width:100%;min-height:200px;aspect-ratio:16/9;background:#070b12;border-radius:12px;
-      overflow:hidden;display:flex;align-items:center;justify-content:center
-    }
-    #ytPlayer,#ytPlayer iframe{width:100%!important;height:100%!important;min-height:200px}
-    .musicControls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
-    .musicToggleRow{
-      display:flex;align-items:center;justify-content:space-between;gap:12px;
-      background:#101827;border:1px solid #27334a;border-radius:14px;padding:12px 13px;margin-top:12px
-    }
-    .switch{position:relative;width:50px;height:28px;flex:none}
-    .switch input{opacity:0;width:0;height:0;position:absolute}
-    .slider{position:absolute;inset:0;background:#303b50;border-radius:99px;transition:.2s}
-    .slider:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s}
-    .switch input:checked + .slider{background:#3b82f6}
-    .switch input:checked + .slider:before{transform:translateX(22px)}
+    .switch input:checked +
+    .switch input:checked +
 
     @media(max-width:540px){
       .app{padding:12px 12px 24px}
@@ -166,18 +144,17 @@
         <label><span>Rest between exercises</span><input id="exerciseRest" type="number" min="0" max="300" value="5" inputmode="numeric"></label>
         <label><span>Rest between sets</span><input id="setRest" type="number" min="0" max="3600" value="60" inputmode="numeric"></label>
       </div>
-
-      <div class="musicToggleRow">
-        <div>
-          <div class="sectionTitle">Workout Music</div>
-          <div class="muted small">Real K-pop workout playlists</div>
-        </div>
         <label class="switch" aria-label="Workout music">
           <input id="musicEnabled" type="checkbox" checked>
           <span class="slider"></span>
         </label>
       </div>
 
+
+      <div style="margin-top:12px;background:#101827;border:1px solid #27334a;border-radius:14px;padding:12px 13px">
+        <div class="sectionTitle">Music</div>
+        <div class="muted small">Start your playlist in YouTube Music, then return here. Your music can continue in the background while Jessica coaches the workout.</div>
+      </div>
       <div class="editorActions two">
         <button id="saveWorkout" type="button" class="secondary">Save Workout</button>
         <button type="submit" class="primary">Start Workout</button>
@@ -203,19 +180,12 @@
       <div id="cueDisplay" class="cue"></div>
       <div id="nextDisplay" class="nextLine"></div>
     </div>
-
-    <div id="musicPanel" class="musicPanel">
-      <div class="musicTop">
-        <div>
-          <div class="musicTitle">K-Pop Workout Music</div>
-          <div id="musicStatus" class="musicStatus">Loading K-pop workout playlist…</div>
-        </div>
-      </div>
       <div class="musicPlayerWrap">
         <div id="ytPlayer"></div>
       </div>
       <div class="musicControls">
         <button id="musicPlayPause" type="button" class="secondary">Pause Music</button>
+        <button id="musicSkip" type="button" class="secondary">Skip Song</button>
         <button id="musicNext" type="button" class="secondary">Next Playlist</button>
       </div>
     </div>
@@ -871,6 +841,34 @@
   });
 
 
+  const MUSIC_POSITION_KEY='kbMusicPositionV1';
+  const MUSIC_VIDEO_KEY='kbMusicVideoV1';
+  let musicPositionTimer=null;
+  function saveMusicPosition(){
+    if(!ytPlayer||!ytReady)return;
+    try{
+      const d=ytPlayer.getVideoData?ytPlayer.getVideoData():{};
+      const id=d.video_id||WORKOUT_MIXES[currentMixIndex]?.id;
+      const t=ytPlayer.getCurrentTime?ytPlayer.getCurrentTime():0;
+      if(id&&Number.isFinite(t)){localStorage.setItem(MUSIC_VIDEO_KEY,id);localStorage.setItem(MUSIC_POSITION_KEY,String(t));}
+    }catch(e){}
+  }
+  function restoreMusicPosition(player,id){
+    try{
+      const sid=localStorage.getItem(MUSIC_VIDEO_KEY);
+      const t=parseFloat(localStorage.getItem(MUSIC_POSITION_KEY)||'0');
+      if(sid===id&&t>5&&player.seekTo)player.seekTo(t,true);
+    }catch(e){}
+  }
+  function skipSong(){
+    if(!ytPlayer||!ytReady)return;
+    try{
+      const now=ytPlayer.getCurrentTime?ytPlayer.getCurrentTime():0;
+      const dur=ytPlayer.getDuration?ytPlayer.getDuration():0;
+      if(dur&&now+210<dur-3){ytPlayer.seekTo(now+210,true);ytPlayer.playVideo();saveMusicPosition();$('#musicStatus').textContent='Skipped ahead';}
+      else nextMusicMix();
+    }catch(e){nextMusicMix();}
+  }
   function loadYouTubeApi(){
     if(ytApiRequested || window.YT) return;
     ytApiRequested = true;
@@ -920,7 +918,9 @@
           musicPaused=false;
           try{
             e.target.setVolume(normalMusicVolume);
+            restoreMusicPosition(e.target, WORKOUT_MIXES[currentMixIndex]?.id);
             e.target.playVideo();
+            clearInterval(musicPositionTimer); musicPositionTimer=setInterval(saveMusicPosition,5000);
           }catch(err){}
           updateMusicButton();
         },
@@ -953,15 +953,7 @@
     if(sessionActive && musicWanted) createPlayerIfNeeded();
   };
 
-  function startWorkoutMusic(){
-    musicWanted = localStorage.getItem(MUSIC_KEY) !== 'false';
-    $('#musicPanel').hidden = !musicWanted;
-    if(!musicWanted) return;
-    $('#musicStatus').textContent='Loading K-pop workout playlist…';
-    createPlayerIfNeeded();
-    // If the API was already loaded, creation is immediate.
-    if(window.YT && YT.Player) createPlayerIfNeeded();
-  }
+  function startWorkoutMusic(){ /* Music handled by YouTube Music app. */ }
 
   function nextMusicMix(){
     if(!musicWanted) return;
@@ -1006,13 +998,7 @@
     $('#musicPlayPause').textContent = musicPaused ? 'Play Music' : 'Pause Music';
   }
 
-  function stopWorkoutMusic(){
-    if(ytPlayer && ytReady){
-      try{ ytPlayer.stopVideo(); }catch(e){}
-    }
-    musicPaused=true;
-    updateMusicButton();
-  }
+  function stopWorkoutMusic(){ /* Music handled by YouTube Music app. */ }
 
   async function beginSession(w){
     stopTimer();
@@ -1272,8 +1258,8 @@
   });
 
   $('#endButton').addEventListener('click',endSession);
-  $('#musicPlayPause').addEventListener('click',toggleMusic);
-  $('#musicNext').addEventListener('click',nextMusicMix);
+
+
   $('#musicEnabled').addEventListener('change',()=>{
     localStorage.setItem(MUSIC_KEY, $('#musicEnabled').checked ? 'true' : 'false');
   });
@@ -1287,6 +1273,7 @@
     });
   }
 })();
+
 </script>
 
 </body>
