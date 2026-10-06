@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kb-timer-v14-youtube-music';
+const CACHE_NAME = 'kb-timer-v15-no-music-controls';
 
 const APP_SHELL = [
   './',

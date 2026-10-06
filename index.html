@@ -94,6 +94,10 @@
       .session{min-height:calc(100vh - 24px)}
     }
   </style>
+
+  <style>
+    #musicPanel,#musicPlayPause,#musicSkip,#musicNext,#ytPlayer{display:none!important}
+  </style>
 </head>
 <body>
 <main class="app">
@@ -181,12 +185,8 @@
       <div id="nextDisplay" class="nextLine"></div>
     </div>
       <div class="musicPlayerWrap">
-        <div id="ytPlayer"></div>
       </div>
       <div class="musicControls">
-        <button id="musicPlayPause" type="button" class="secondary">Pause Music</button>
-        <button id="musicSkip" type="button" class="secondary">Skip Song</button>
-        <button id="musicNext" type="button" class="secondary">Next Playlist</button>
       </div>
     </div>
 
